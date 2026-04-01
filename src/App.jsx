@@ -155,8 +155,8 @@ function App() {
     <main className="app-shell">
       <section className="timer-card">
         <div className="hero-copy">
-          <p className="eyebrow">Pomodoro rhythm</p>
-          <h1>20 minutes of focus, 5 minutes of break, repeated for 4 rounds.</h1>
+          <p className="eyebrow">Minimal Pomodoro</p>
+          {/* <h1>Calm focus, short breaks, four steady rounds.</h1> */}
           <p className="lead">{phases[phase].status}</p>
         </div>
 
@@ -184,47 +184,41 @@ function App() {
             {phase === 'complete' ? 'Restart cycle' : 'Skip'}
           </button>
         </div>
-      </section>
 
-      <section className="stats-grid" aria-label="Pomodoro session overview">
-        <article className="stat-card accent">
-          <p className="stat-label">Current mode</p>
-          <h2>{phases[phase].label}</h2>
-          <p>{isRunning ? 'Timer is running' : 'Timer is paused'}</p>
-        </article>
+        <section className="summary-strip" aria-label="Pomodoro session overview">
+          <div className="summary-item">
+            <span className="stat-label">Mode</span>
+            <strong>{phases[phase].label}</strong>
+          </div>
+          <div className="summary-item">
+            <span className="stat-label">Progress</span>
+            <strong>
+              {completedFocusSessions} / {MAX_FOCUS_SESSIONS}
+            </strong>
+          </div>
+          <div className="summary-item">
+            <span className="stat-label">Next</span>
+            <strong>{nextStageLabel}</strong>
+          </div>
+        </section>
 
-        <article className="stat-card">
-          <p className="stat-label">Focus sessions done</p>
-          <h2>
-            {completedFocusSessions} / {MAX_FOCUS_SESSIONS}
-          </h2>
-          <p>Each finished focus block moves you one step closer to a full cycle.</p>
-        </article>
+        <section className="session-track" aria-label="Focus session progress">
+          {Array.from({ length: MAX_FOCUS_SESSIONS }, (_, index) => {
+            const sessionNumber = index + 1
+            const isComplete = sessionNumber <= completedFocusSessions
+            const isCurrent =
+              !isComplete && phase !== 'complete' && sessionNumber === completedFocusSessions + 1
 
-        <article className="stat-card">
-          <p className="stat-label">Next up</p>
-          <h2>{nextStageLabel}</h2>
-          <p>The app automatically alternates focus and break blocks until the fourth focus round ends.</p>
-        </article>
-      </section>
-
-      <section className="session-track" aria-label="Focus session progress">
-        {Array.from({ length: MAX_FOCUS_SESSIONS }, (_, index) => {
-          const sessionNumber = index + 1
-          const isComplete = sessionNumber <= completedFocusSessions
-          const isCurrent =
-            !isComplete && phase !== 'complete' && sessionNumber === completedFocusSessions + 1
-
-          return (
-            <div
-              key={sessionNumber}
-              className={`session-pill ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''}`}
-            >
-              <span>Focus {sessionNumber}</span>
-              <strong>{isComplete ? 'Done' : isCurrent ? 'Now' : 'Waiting'}</strong>
-            </div>
-          )
-        })}
+            return (
+              <div
+                key={sessionNumber}
+                className={`session-pill ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''}`}
+              >
+                <span>{sessionNumber}</span>
+              </div>
+            )
+          })}
+        </section>
       </section>
     </main>
   )

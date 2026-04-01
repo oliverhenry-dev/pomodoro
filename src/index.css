@@ -1,22 +1,22 @@
 :root {
-  --bg: #f6eadf;
-  --panel: rgba(255, 248, 239, 0.82);
-  --card-border: rgba(121, 86, 64, 0.12);
-  --heading-color: #30211c;
-  --text: #5f4b40;
-  --soft-text: #7a6154;
-  --muted: #9a7e6f;
-  --accent: #d25b3d;
-  --shadow: 0 24px 60px rgba(118, 73, 43, 0.13);
-  --sans: 'Trebuchet MS', 'Segoe UI', sans-serif;
-  --display: Georgia, 'Times New Roman', serif;
+  --bg: #edf4f8;
+  --panel: rgba(255, 255, 255, 0.78);
+  --card-border: rgba(126, 156, 180, 0.18);
+  --heading-color: #183247;
+  --text: #416074;
+  --soft-text: #6b8799;
+  --muted: #8ca4b4;
+  --accent: #5f8fb5;
+  --shadow: 0 20px 50px rgba(83, 118, 148, 0.12);
+  --sans: 'Segoe UI', Tahoma, sans-serif;
+  --display: 'Times New Roman', Georgia, serif;
 
   font: 18px/1.5 var(--sans);
   letter-spacing: 0.01em;
   color: var(--text);
   background:
-    radial-gradient(circle at top, rgba(255, 232, 192, 0.72), transparent 36%),
-    linear-gradient(180deg, #f7efe5 0%, #f2dfd1 100%);
+    radial-gradient(circle at top, rgba(214, 233, 246, 0.8), transparent 38%),
+    linear-gradient(180deg, #f4f9fc 0%, #e8f0f5 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -34,6 +34,7 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  background: var(--bg);
 }
 
 #root {
@@ -54,8 +55,8 @@ h2 {
 h1 {
   margin: 14px 0 12px;
   font-family: var(--display);
-  font-size: clamp(2.4rem, 5vw, 4.5rem);
-  line-height: 0.98;
+  font-size: clamp(2.3rem, 5vw, 3.8rem);
+  line-height: 1.02;
 }
 
 button {

@@ -122,7 +122,7 @@ function playNotificationSound(audioCtx) {
   }
 
   // fallback to HTMLAudioElement (works on most browsers)
-  const fallbackAudio = new Audio('https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg')
+  const fallbackAudio = new Audio('/bugle_tune.ogg')
   fallbackAudio.volume = 1
   fallbackAudio.play().catch(() => { })
 }

@@ -94,37 +94,11 @@ function createAudioContext() {
   }
 }
 
-function playNotificationSound(audioCtx) {
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => { })
-  }
-
-  if (audioCtx) {
-    try {
-      const oscillator = audioCtx.createOscillator()
-      const gain = audioCtx.createGain()
-
-      oscillator.type = 'sine'
-      oscillator.frequency.value = 880
-      gain.gain.value = 0.2
-
-      oscillator.connect(gain)
-      gain.connect(audioCtx.destination)
-
-      oscillator.start()
-      setTimeout(() => {
-        oscillator.stop()
-      }, 6000) // play 6-second notification tone
-      return
-    } catch {
-      // continue to fallback option
-    }
-  }
-
-  // fallback to HTMLAudioElement (works on most browsers)
-  const fallbackAudio = new Audio('/bugle_tune.ogg')
-  fallbackAudio.volume = 1
-  fallbackAudio.play().catch(() => { })
+function playNotificationSound(audioContext) {
+  // Play notification sound using noti.mp3
+  const audio = new Audio('/noti.mp3')
+  audio.volume = 1
+  audio.play().catch(() => { })
 }
 
 function App() {

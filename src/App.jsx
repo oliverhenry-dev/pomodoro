@@ -82,37 +82,56 @@ function formatTime(totalSeconds) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
-function playNotificationSound() {
+function createAudioContext() {
   if (typeof window === 'undefined' || !window.AudioContext) {
-    return
+    return null
   }
 
   try {
-    const audioCtx = new window.AudioContext()
-    const oscillator = audioCtx.createOscillator()
-    const gain = audioCtx.createGain()
-
-    oscillator.type = 'sine'
-    oscillator.frequency.value = 880
-    gain.gain.value = 0.2
-
-    oscillator.connect(gain)
-    gain.connect(audioCtx.destination)
-
-    oscillator.start()
-    setTimeout(() => {
-      oscillator.stop()
-      audioCtx.close()
-    }, 180)
+    return new window.AudioContext()
   } catch {
-    // non-critical: browser may block autoplay if user interaction hasn't happened yet
+    return null
   }
+}
+
+function playNotificationSound(audioCtx) {
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {})
+  }
+
+  if (audioCtx) {
+    try {
+      const oscillator = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+
+      oscillator.type = 'sine'
+      oscillator.frequency.value = 880
+      gain.gain.value = 0.2
+
+      oscillator.connect(gain)
+      gain.connect(audioCtx.destination)
+
+      oscillator.start()
+      setTimeout(() => {
+        oscillator.stop()
+      }, 5000) // play 5-second notification tone
+      return
+    } catch {
+      // continue to fallback option
+    }
+  }
+
+  // fallback to HTMLAudioElement (works on most browsers)
+  const fallbackAudio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg')
+  fallbackAudio.volume = 0.2
+  fallbackAudio.play().catch(() => {})
 }
 
 function App() {
   const [timerState, setTimerState] = useState(createInitialState)
   const { phase, secondsLeft, isRunning, completedFocusSessions } = timerState
   const isInitialPhase = useRef(true)
+  const audioContextRef = useRef(null)
 
   useEffect(() => {
     if (isInitialPhase.current) {
@@ -120,7 +139,7 @@ function App() {
       return
     }
 
-    playNotificationSound()
+    playNotificationSound(audioContextRef.current)
   }, [phase])
 
   useEffect(() => {
@@ -165,6 +184,11 @@ function App() {
   }, [completedFocusSessions, phase])
 
   const toggleTimer = () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = createAudioContext()
+      playNotificationSound(audioContextRef.current)
+    }
+
     if (phase === 'complete') {
       setTimerState({
         ...createInitialState(),

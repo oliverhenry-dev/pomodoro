@@ -114,7 +114,7 @@ function playNotificationSound(audioCtx) {
       oscillator.start()
       setTimeout(() => {
         oscillator.stop()
-      }, 500) // play 0.5-second notification tone
+      }, 6000) // play 6-second notification tone
       return
     } catch {
       // continue to fallback option
@@ -122,8 +122,8 @@ function playNotificationSound(audioCtx) {
   }
 
   // fallback to HTMLAudioElement (works on most browsers)
-  const fallbackAudio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg')
-  fallbackAudio.volume = 0.2
+  const fallbackAudio = new Audio('https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg')
+  fallbackAudio.volume = 1
   fallbackAudio.play().catch(() => { })
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
 const FOCUS_MINUTES = 20
@@ -39,13 +39,6 @@ function createInitialState() {
   }
 }
 
-function formatTime(totalSeconds) {
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-}
-
 function getNextState(currentState) {
   if (currentState.phase === 'focus') {
     const nextCompletedFocusSessions = currentState.completedFocusSessions + 1
@@ -82,16 +75,60 @@ function getNextState(currentState) {
   }
 }
 
+function formatTime(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function playNotificationSound() {
+  if (typeof window === 'undefined' || !window.AudioContext) {
+    return
+  }
+
+  try {
+    const audioCtx = new window.AudioContext()
+    const oscillator = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
+
+    oscillator.type = 'sine'
+    oscillator.frequency.value = 880
+    gain.gain.value = 0.2
+
+    oscillator.connect(gain)
+    gain.connect(audioCtx.destination)
+
+    oscillator.start()
+    setTimeout(() => {
+      oscillator.stop()
+      audioCtx.close()
+    }, 180)
+  } catch {
+    // non-critical: browser may block autoplay if user interaction hasn't happened yet
+  }
+}
+
 function App() {
   const [timerState, setTimerState] = useState(createInitialState)
   const { phase, secondsLeft, isRunning, completedFocusSessions } = timerState
+  const isInitialPhase = useRef(true)
+
+  useEffect(() => {
+    if (isInitialPhase.current) {
+      isInitialPhase.current = false
+      return
+    }
+
+    playNotificationSound()
+  }, [phase])
 
   useEffect(() => {
     if (!isRunning || phase === 'complete') {
       return undefined
     }
 
-    const timeoutId = window.setTimeout(() => {
+    const intervalId = window.setInterval(() => {
       setTimerState((currentState) => {
         if (currentState.secondsLeft > 1) {
           return {
@@ -104,8 +141,8 @@ function App() {
       })
     }, 1000)
 
-    return () => window.clearTimeout(timeoutId)
-  }, [isRunning, phase, secondsLeft])
+    return () => window.clearInterval(intervalId)
+  }, [isRunning, phase])
 
   const progressPercent = useMemo(() => {
     if (phase === 'complete') {
@@ -120,7 +157,6 @@ function App() {
     if (phase === 'focus') {
       return completedFocusSessions + 1 >= MAX_FOCUS_SESSIONS ? 'Long rest' : '5-minute break'
     }
-
     if (phase === 'break') {
       return `Focus ${completedFocusSessions + 1}`
     }
@@ -156,16 +192,12 @@ function App() {
       <section className="timer-card">
         <div className="hero-copy">
           <p className="eyebrow">Minimal Pomodoro</p>
-          {/* <h1>Calm focus, short breaks, four steady rounds.</h1> */}
+          <h1>Calm focus, short breaks, four steady rounds.</h1>
           <p className="lead">{phases[phase].status}</p>
         </div>
 
         <div className={`timer-face phase-${phase}`}>
-          <div
-            className="progress-ring"
-            style={{ '--progress': `${progressPercent}%` }}
-            aria-hidden="true"
-          />
+          <div className="progress-ring" style={{ '--progress': `${progressPercent}%` }} aria-hidden="true" />
           <p className="phase-label">{phases[phase].label}</p>
           <p className="time-left" aria-live="polite">
             {formatTime(secondsLeft)}

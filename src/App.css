@@ -1,0 +1,221 @@
+.app-shell {
+  width: min(1100px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 48px 0 64px;
+}
+
+.timer-card {
+  position: relative;
+  overflow: hidden;
+  padding: 40px;
+  border: 1px solid var(--card-border);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at top right, rgba(244, 104, 71, 0.22), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(255, 215, 145, 0.18), transparent 30%),
+    var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.hero-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.eyebrow,
+.stat-label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.lead {
+  max-width: 42rem;
+  font-size: 1.05rem;
+}
+
+.timer-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(100%, 380px);
+  aspect-ratio: 1;
+  margin: 36px auto 28px;
+  padding: 24px;
+  border-radius: 50%;
+  background: rgba(255, 250, 243, 0.88);
+  text-align: center;
+}
+
+.progress-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, transparent 63%, rgba(255, 255, 255, 0.94) 64%),
+    conic-gradient(var(--ring-color) var(--progress), rgba(204, 183, 165, 0.18) 0);
+}
+
+.phase-focus {
+  --ring-color: #df5f3f;
+}
+
+.phase-break {
+  --ring-color: #3d8b73;
+}
+
+.phase-complete {
+  --ring-color: #d49a1f;
+}
+
+.phase-label,
+.time-left,
+.phase-cue {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+}
+
+.phase-label {
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+}
+
+.time-left {
+  font-family: var(--display);
+  font-size: clamp(4rem, 10vw, 6.5rem);
+  line-height: 0.95;
+  color: var(--heading-color);
+}
+
+.phase-cue {
+  font-size: 1rem;
+  color: var(--soft-text);
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.primary-button,
+.secondary-button,
+.ghost-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 24px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.primary-button {
+  background: var(--accent);
+  color: #fffaf3;
+  box-shadow: 0 18px 32px rgba(210, 91, 61, 0.24);
+}
+
+.secondary-button {
+  background: rgba(124, 83, 54, 0.08);
+  color: var(--heading-color);
+}
+
+.ghost-button {
+  background: transparent;
+  color: var(--soft-text);
+  border: 1px solid rgba(124, 83, 54, 0.18);
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.ghost-button:hover {
+  transform: translateY(-1px);
+}
+
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.ghost-button:focus-visible {
+  outline: 3px solid rgba(223, 95, 63, 0.28);
+  outline-offset: 2px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.stat-card {
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 249, 240, 0.8);
+}
+
+.stat-card h2 {
+  margin: 10px 0 8px;
+  font-size: 1.5rem;
+}
+
+.stat-card.accent {
+  background:
+    linear-gradient(135deg, rgba(223, 95, 63, 0.14), rgba(255, 227, 184, 0.18)),
+    rgba(255, 249, 240, 0.92);
+}
+
+.session-track {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.session-pill {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 250, 246, 0.72);
+  color: var(--soft-text);
+}
+
+.session-pill span,
+.session-pill strong {
+  position: relative;
+  z-index: 1;
+}
+
+.session-pill.complete {
+  background: rgba(61, 139, 115, 0.14);
+  color: #1c5b48;
+}
+
+.session-pill.current {
+  background: rgba(223, 95, 63, 0.16);
+  color: #8b341d;
+}
+
+@media (max-width: 900px) {
+  .stats-grid,
+  .session-track {
+    grid-template-columns: 1fr;
+  }
+
+  .timer-card {
+    padding: 28px 20px;
+  }
+}

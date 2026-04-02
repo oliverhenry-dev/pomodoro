@@ -1,289 +1,305 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Coffee, Pause, Play, RotateCcw, SkipForward, Sparkles, Target } from 'lucide-react'
 import './App.css'
 
-const FOCUS_MINUTES = 20
-const BREAK_MINUTES = 5
-const MAX_FOCUS_SESSIONS = 4
+const SESSION_BLUEPRINT = [
+  { type: 'Focus', label: 'Focus 1', minutes: 20 },
+  { type: 'Break', label: 'Break 1', minutes: 5 },
+  { type: 'Focus', label: 'Focus 2', minutes: 20 },
+  { type: 'Break', label: 'Break 2', minutes: 5 },
+  { type: 'Focus', label: 'Focus 3', minutes: 20 },
+  { type: 'Break', label: 'Break 3', minutes: 5 },
+  { type: 'Focus', label: 'Focus 4', minutes: 20 },
+]
 
-const phases = {
-  focus: {
-    label: 'Focus time',
-    minutes: FOCUS_MINUTES,
-    cue: 'Deep work block',
-    status: 'Keep one clear task in front of you and let the clock hold the boundary.',
-  },
-  break: {
-    label: 'Break time',
-    minutes: BREAK_MINUTES,
-    cue: 'Reset and breathe',
-    status: 'Step away for five minutes, loosen your shoulders, and come back with fresh energy.',
-  },
-  complete: {
-    label: 'Cycle complete',
-    minutes: 0,
-    cue: 'Four focus sessions finished',
-    status: 'You finished four focus rounds. Take a longer rest before starting another cycle.',
-  },
-}
-
-function getPhaseDuration(phase) {
-  return phases[phase].minutes * 60
-}
-
-function createInitialState() {
-  return {
-    phase: 'focus',
-    startTime: null,
-    pausedTime: null,
-    totalDuration: getPhaseDuration('focus'),
-    isRunning: false,
-    completedFocusSessions: 0,
-  }
-}
-
-function getNextState(currentState) {
-  if (currentState.phase === 'focus') {
-    const nextCompletedFocusSessions = currentState.completedFocusSessions + 1
-
-    if (nextCompletedFocusSessions >= MAX_FOCUS_SESSIONS) {
-      return {
-        phase: 'complete',
-        startTime: null,
-        pausedTime: null,
-        totalDuration: 0,
-        isRunning: false,
-        completedFocusSessions: nextCompletedFocusSessions,
-      }
-    }
-
-    return {
-      phase: 'break',
-      startTime: currentState.isRunning ? Date.now() : null,
-      pausedTime: currentState.isRunning ? null : currentState.pausedTime,
-      totalDuration: getPhaseDuration('break'),
-      isRunning: currentState.isRunning,
-      completedFocusSessions: nextCompletedFocusSessions,
-    }
-  }
-
-  if (currentState.phase === 'break') {
-    return {
-      phase: 'focus',
-      startTime: currentState.isRunning ? Date.now() : null,
-      pausedTime: currentState.isRunning ? null : currentState.pausedTime,
-      totalDuration: getPhaseDuration('focus'),
-      isRunning: currentState.isRunning,
-      completedFocusSessions: currentState.completedFocusSessions,
-    }
-  }
-
-  // If we are already at complete, don't auto-restart the cycle.
-  return {
-    ...currentState,
-    isRunning: false,
-  }
-}
+const totalSessions = SESSION_BLUEPRINT.length
 
 function formatTime(totalSeconds) {
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
+  const seconds = String(totalSeconds % 60).padStart(2, '0')
+  return `${minutes}:${seconds}`
 }
 
-function createAudioContext() {
-  if (typeof window === 'undefined' || !window.AudioContext) {
-    return null
+function getSessionSeconds(index) {
+  return SESSION_BLUEPRINT[index].minutes * 60
+}
+
+function advanceSession(currentIndex, overtimeMs) {
+  const nextIndex = currentIndex + 1
+
+  if (nextIndex >= totalSessions) {
+    return {
+      sessionIndex: totalSessions - 1,
+      secondsLeft: 0,
+      cycleComplete: true,
+      remainingMs: 0,
+    }
   }
 
-  try {
-    return new window.AudioContext()
-  } catch {
-    return null
+  let targetIndex = nextIndex
+  let extraMs = overtimeMs
+
+  while (targetIndex < totalSessions) {
+    const targetDurationMs = getSessionSeconds(targetIndex) * 1000
+
+    if (extraMs < targetDurationMs) {
+      const remainingMs = targetDurationMs - extraMs
+
+      return {
+        sessionIndex: targetIndex,
+        secondsLeft: Math.ceil(remainingMs / 1000),
+        cycleComplete: false,
+        remainingMs,
+      }
+    }
+
+    extraMs -= targetDurationMs
+    targetIndex += 1
+  }
+
+  return {
+    sessionIndex: totalSessions - 1,
+    secondsLeft: 0,
+    cycleComplete: true,
+    remainingMs: 0,
   }
 }
 
-function playNotificationSound() {
-  // Play notification sound using noti.mp3
-  const audio = new Audio('/noti.mp3')
-  audio.volume = 1
-  audio.play().catch(() => { })
-}
+export default function App() {
+  const [sessionIndex, setSessionIndex] = useState(0)
+  const [secondsLeft, setSecondsLeft] = useState(getSessionSeconds(0))
+  const [isRunning, setIsRunning] = useState(false)
+  const [cycleComplete, setCycleComplete] = useState(false)
+  const notificationAudioRef = useRef(null)
+  const deadlineRef = useRef(null)
 
-function App() {
-  const [timerState, setTimerState] = useState(createInitialState)
-  const { phase, startTime, pausedTime, totalDuration, isRunning, completedFocusSessions } = timerState
-  const [tick, setTick] = useState(0)
-  const isInitialPhase = useRef(true)
-  const audioContextRef = useRef(null)
+  const activeSession = SESSION_BLUEPRINT[sessionIndex]
+  const sessionDuration = getSessionSeconds(sessionIndex)
+  const progress = ((sessionDuration - secondsLeft) / sessionDuration) * 100
+  const completedSessions = cycleComplete ? totalSessions : sessionIndex
 
-  const secondsLeft = useMemo(() => {
-    if (phase === 'complete') return 0
+  function playNotification() {
+    const audio = notificationAudioRef.current
+    if (!audio) return
+
+    audio.currentTime = 0
+    audio.play().catch(() => {})
+  }
+
+  function startSession(nextIndex, nextSecondsLeft) {
+    setSessionIndex(nextIndex)
+    setSecondsLeft(nextSecondsLeft)
+    setCycleComplete(false)
+    deadlineRef.current = Date.now() + nextSecondsLeft * 1000
+    setIsRunning(true)
+  }
+
+  useEffect(() => {
+    if (!isRunning || cycleComplete) return undefined
+
+    function syncTimer() {
+      const deadline = deadlineRef.current
+      if (!deadline) return
+
+      const now = Date.now()
+      const remainingMs = deadline - now
+
+      if (remainingMs > 0) {
+        setSecondsLeft(Math.ceil(remainingMs / 1000))
+        return
+      }
+
+      playNotification()
+
+      const nextState = advanceSession(sessionIndex, Math.abs(remainingMs))
+
+      if (nextState.cycleComplete) {
+        deadlineRef.current = null
+        setSessionIndex(nextState.sessionIndex)
+        setSecondsLeft(0)
+        setCycleComplete(true)
+        setIsRunning(false)
+        return
+      }
+
+      deadlineRef.current = now + nextState.remainingMs
+      setSessionIndex(nextState.sessionIndex)
+      setSecondsLeft(nextState.secondsLeft)
+    }
+
+    syncTimer()
+    const timer = window.setInterval(syncTimer, 250)
+    window.addEventListener('visibilitychange', syncTimer)
+
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('visibilitychange', syncTimer)
+    }
+  }, [cycleComplete, isRunning, sessionIndex])
+
+  useEffect(() => {
+    if (cycleComplete) {
+      document.title = 'Pomodoro cycle complete'
+      return
+    }
+
+    document.title = `${formatTime(secondsLeft)} - ${activeSession.label}`
+  }, [activeSession.label, cycleComplete, secondsLeft])
+
+  useEffect(() => {
+    const audio = new Audio('/noti.mp3')
+    audio.preload = 'auto'
+    notificationAudioRef.current = audio
+
+    return () => {
+      audio.pause()
+      audio.currentTime = 0
+      notificationAudioRef.current = null
+    }
+  }, [])
+
+  function handleStartPause() {
+    if (cycleComplete) {
+      startSession(0, getSessionSeconds(0))
+      return
+    }
+
     if (isRunning) {
-      const elapsed = (tick - startTime) / 1000
-      return Math.max(0, Math.ceil(totalDuration - elapsed))
+      const remainingMs = deadlineRef.current
+        ? Math.max(0, deadlineRef.current - Date.now())
+        : secondsLeft * 1000
+
+      deadlineRef.current = null
+      setSecondsLeft(Math.ceil(remainingMs / 1000))
+      setIsRunning(false)
+      return
+    }
+
+    deadlineRef.current = Date.now() + secondsLeft * 1000
+    setIsRunning(true)
+  }
+
+  function handleReset() {
+    deadlineRef.current = null
+    setIsRunning(false)
+    setCycleComplete(false)
+    setSessionIndex(0)
+    setSecondsLeft(getSessionSeconds(0))
+  }
+
+  function handleSkip() {
+    if (sessionIndex === totalSessions - 1) {
+      deadlineRef.current = null
+      setIsRunning(false)
+      setCycleComplete(true)
+      setSecondsLeft(0)
+      return
+    }
+
+    const nextSession = sessionIndex + 1
+    setCycleComplete(false)
+    setSessionIndex(nextSession)
+
+    const nextSecondsLeft = getSessionSeconds(nextSession)
+    setSecondsLeft(nextSecondsLeft)
+
+    if (isRunning) {
+      deadlineRef.current = Date.now() + nextSecondsLeft * 1000
     } else {
-      return Math.max(0, Math.ceil(totalDuration - (pausedTime || 0)))
+      deadlineRef.current = null
     }
-  }, [phase, startTime, pausedTime, totalDuration, isRunning, tick])
-
-  useEffect(() => {
-    if (isInitialPhase.current) {
-      isInitialPhase.current = false
-      return
-    }
-
-    // No sound on phase change, only at end of cycle
-  }, [phase])
-
-  useEffect(() => {
-    if (!isRunning || phase === 'complete') return
-
-    const update = () => {
-      setTick(Date.now())
-      const elapsed = (Date.now() - startTime) / 1000
-      if (elapsed >= totalDuration) {
-        const nextState = getNextState(timerState)
-        playNotificationSound()
-        setTimerState(nextState)
-      } else {
-        requestAnimationFrame(update)
-      }
-    }
-    requestAnimationFrame(update)
-  }, [isRunning, phase, startTime, totalDuration, timerState])
-
-  const progressPercent = useMemo(() => {
-    if (phase === 'complete') {
-      return 100
-    }
-
-    return ((totalDuration - secondsLeft) / totalDuration) * 100
-  }, [phase, secondsLeft, totalDuration])
-
-  const nextStageLabel = useMemo(() => {
-    if (phase === 'focus') {
-      return completedFocusSessions + 1 >= MAX_FOCUS_SESSIONS ? 'Long rest' : '5-minute break'
-    }
-    if (phase === 'break') {
-      return `Focus ${completedFocusSessions + 1}`
-    }
-
-    return 'New cycle'
-  }, [completedFocusSessions, phase])
-
-  const toggleTimer = () => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = createAudioContext()
-    }
-
-    if (phase === 'complete') {
-      setTimerState({
-        ...createInitialState(),
-        isRunning: true,
-        startTime: Date.now(),
-      })
-      return
-    }
-
-    setTimerState((currentState) => {
-      if (currentState.isRunning) {
-        // Pausing
-        const elapsed = Date.now() - currentState.startTime
-        return {
-          ...currentState,
-          isRunning: false,
-          pausedTime: elapsed / 1000,
-          startTime: null,
-        }
-      } else {
-        // Starting/Resuming
-        const newStartTime = Date.now() - (currentState.pausedTime * 1000 || 0)
-        return {
-          ...currentState,
-          isRunning: true,
-          startTime: newStartTime,
-          pausedTime: null,
-        }
-      }
-    })
-  }
-
-  const resetTimer = () => {
-    setTimerState(createInitialState())
-  }
-
-  const skipPhase = () => {
-    setTimerState((currentState) => getNextState({ ...currentState, isRunning: false, startTime: null, pausedTime: null }))
   }
 
   return (
     <main className="app-shell">
       <section className="timer-card">
-        <div className="hero-copy">
-          <p className="eyebrow">Minimal Pomodoro</p>
-          <h1>Calm focus, short breaks, four steady rounds.</h1>
-          <p className="lead">{phases[phase].status}</p>
+        <div className="card-glow" aria-hidden="true" />
+        <div className="card-grid" aria-hidden="true" />
+
+        <div className="heading-row">
+          <div>
+            <p className="eyebrow">Pomodoro cycle</p>
+            <h1>Quiet focus</h1>
+          </div>
+          <div className="mini-badge">
+            <Sparkles size={16} strokeWidth={2} />
+            <span>Flow mode</span>
+          </div>
         </div>
 
-        <div className={`timer-face phase-${phase}`}>
-          <div className="progress-ring" style={{ '--progress': `${progressPercent}%` }} aria-hidden="true" />
-          <p className="phase-label">{phases[phase].label}</p>
-          <p className="time-left" aria-live="polite">
-            {formatTime(secondsLeft)}
-          </p>
-          <p className="phase-cue">{phases[phase].cue}</p>
+        <div className="status-row">
+          <span className={`session-chip ${activeSession.type.toLowerCase()}`}>
+            {cycleComplete ? <Sparkles size={16} strokeWidth={2} /> : activeSession.type === 'Focus'
+              ? <Target size={16} strokeWidth={2} />
+              : <Coffee size={16} strokeWidth={2} />}
+            {cycleComplete ? 'Completed' : activeSession.type}
+          </span>
+          <span className="session-count">
+            Session {Math.min(sessionIndex + 1, totalSessions)} / {totalSessions}
+          </span>
+        </div>
+
+        <div className="timer-ring" style={{ '--progress': `${progress}%` }}>
+          <div className="timer-ring-inner">
+            <p className="session-label">{cycleComplete ? 'Cycle finished' : activeSession.label}</p>
+            <p className="time-readout">{formatTime(secondsLeft)}</p>
+            <p className="session-note">
+              {cycleComplete
+                ? 'Take a longer rest before starting another round.'
+                : `${activeSession.minutes} minute ${activeSession.type.toLowerCase()} session`}
+            </p>
+          </div>
         </div>
 
         <div className="controls">
-          <button className="primary-button" onClick={toggleTimer}>
-            {phase === 'complete' ? 'Start again' : isRunning ? 'Pause' : 'Start'}
+          <button className="primary-button" type="button" onClick={handleStartPause}>
+            {cycleComplete ? <RotateCcw size={17} strokeWidth={2.2} /> : isRunning ? <Pause size={17} strokeWidth={2.2} /> : <Play size={17} strokeWidth={2.2} />}
+            {cycleComplete ? 'Restart cycle' : isRunning ? 'Pause' : 'Start'}
           </button>
-          <button className="secondary-button" onClick={resetTimer}>
+          <button className="secondary-button" type="button" onClick={handleReset}>
+            <RotateCcw size={16} strokeWidth={2.1} />
             Reset
           </button>
-          <button className="ghost-button" onClick={skipPhase}>
-            {phase === 'complete' ? 'Restart cycle' : 'Skip'}
+          <button className="secondary-button" type="button" onClick={handleSkip} disabled={cycleComplete}>
+            <SkipForward size={16} strokeWidth={2.1} />
+            Skip
           </button>
         </div>
 
-        <section className="summary-strip" aria-label="Pomodoro session overview">
+        <div className="session-summary" aria-label="Pomodoro progress">
           <div className="summary-item">
-            <span className="stat-label">Mode</span>
-            <strong>{phases[phase].label}</strong>
+            <span className="summary-label">Done</span>
+            <strong>{completedSessions}</strong>
           </div>
           <div className="summary-item">
-            <span className="stat-label">Progress</span>
-            <strong>
-              {completedFocusSessions} / {MAX_FOCUS_SESSIONS}
-            </strong>
+            <span className="summary-label">Left</span>
+            <strong>{totalSessions - completedSessions}</strong>
           </div>
           <div className="summary-item">
-            <span className="stat-label">Next</span>
-            <strong>{nextStageLabel}</strong>
+            <span className="summary-label">Now</span>
+            <strong>{cycleComplete ? 'Rest' : activeSession.label}</strong>
           </div>
-        </section>
+        </div>
 
-        <section className="session-track" aria-label="Focus session progress">
-          {Array.from({ length: MAX_FOCUS_SESSIONS }, (_, index) => {
-            const sessionNumber = index + 1
-            const isComplete = sessionNumber <= completedFocusSessions
-            const isCurrent =
-              !isComplete && phase !== 'complete' && sessionNumber === completedFocusSessions + 1
+        <ol className="session-strip" aria-label="Pomodoro cycle sessions">
+          {SESSION_BLUEPRINT.map((session, index) => {
+            const state = index < sessionIndex || cycleComplete
+              ? 'done'
+              : index === sessionIndex
+                ? 'active'
+                : 'upcoming'
 
             return (
-              <div
-                key={sessionNumber}
-                className={`session-pill ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''}`}
-              >
-                <span>{sessionNumber}</span>
-              </div>
+              <li key={session.label} className={`session-pill ${state}`}>
+                <span className="session-pill-icon" aria-hidden="true">
+                  {session.type === 'Focus' ? <Target size={14} strokeWidth={2.1} /> : <Coffee size={14} strokeWidth={2.1} />}
+                </span>
+                <span>{session.minutes}m</span>
+              </li>
             )
           })}
-        </section>
+        </ol>
       </section>
     </main>
   )
 }
-
-export default App

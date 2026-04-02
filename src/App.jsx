@@ -77,10 +77,10 @@ function getNextState(currentState) {
     }
   }
 
+  // If we are already at complete, don't auto-restart the cycle.
   return {
-    ...createInitialState(),
-    isRunning: true,
-    startTime: Date.now(),
+    ...currentState,
+    isRunning: false,
   }
 }
 
@@ -144,9 +144,7 @@ function App() {
       const elapsed = (Date.now() - startTime) / 1000
       if (elapsed >= totalDuration) {
         const nextState = getNextState(timerState)
-        if (nextState.phase === 'complete') {
-          playNotificationSound()
-        }
+        playNotificationSound()
         setTimerState(nextState)
       } else {
         requestAnimationFrame(update)

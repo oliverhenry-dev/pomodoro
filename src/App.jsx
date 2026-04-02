@@ -133,7 +133,7 @@ function App() {
       return
     }
 
-    playNotificationSound()
+    // No sound on phase change, only at end of cycle
   }, [phase])
 
   useEffect(() => {
@@ -143,13 +143,17 @@ function App() {
       setTick(Date.now())
       const elapsed = (Date.now() - startTime) / 1000
       if (elapsed >= totalDuration) {
-        setTimerState(currentState => getNextState(currentState))
+        const nextState = getNextState(timerState)
+        if (nextState.phase === 'complete') {
+          playNotificationSound()
+        }
+        setTimerState(nextState)
       } else {
         requestAnimationFrame(update)
       }
     }
     requestAnimationFrame(update)
-  }, [isRunning, phase, startTime, totalDuration])
+  }, [isRunning, phase, startTime, totalDuration, timerState])
 
   const progressPercent = useMemo(() => {
     if (phase === 'complete') {
@@ -173,7 +177,6 @@ function App() {
   const toggleTimer = () => {
     if (!audioContextRef.current) {
       audioContextRef.current = createAudioContext()
-      playNotificationSound()
     }
 
     if (phase === 'complete') {

@@ -33,7 +33,9 @@ function getPhaseDuration(phase) {
 function createInitialState() {
   return {
     phase: 'focus',
-    secondsLeft: getPhaseDuration('focus'),
+    startTime: null,
+    pausedTime: null,
+    totalDuration: getPhaseDuration('focus'),
     isRunning: false,
     completedFocusSessions: 0,
   }
@@ -46,7 +48,9 @@ function getNextState(currentState) {
     if (nextCompletedFocusSessions >= MAX_FOCUS_SESSIONS) {
       return {
         phase: 'complete',
-        secondsLeft: 0,
+        startTime: null,
+        pausedTime: null,
+        totalDuration: 0,
         isRunning: false,
         completedFocusSessions: nextCompletedFocusSessions,
       }
@@ -54,7 +58,9 @@ function getNextState(currentState) {
 
     return {
       phase: 'break',
-      secondsLeft: getPhaseDuration('break'),
+      startTime: currentState.isRunning ? Date.now() : null,
+      pausedTime: currentState.isRunning ? null : currentState.pausedTime,
+      totalDuration: getPhaseDuration('break'),
       isRunning: currentState.isRunning,
       completedFocusSessions: nextCompletedFocusSessions,
     }
@@ -63,7 +69,9 @@ function getNextState(currentState) {
   if (currentState.phase === 'break') {
     return {
       phase: 'focus',
-      secondsLeft: getPhaseDuration('focus'),
+      startTime: currentState.isRunning ? Date.now() : null,
+      pausedTime: currentState.isRunning ? null : currentState.pausedTime,
+      totalDuration: getPhaseDuration('focus'),
       isRunning: currentState.isRunning,
       completedFocusSessions: currentState.completedFocusSessions,
     }
@@ -72,6 +80,7 @@ function getNextState(currentState) {
   return {
     ...createInitialState(),
     isRunning: true,
+    startTime: Date.now(),
   }
 }
 
@@ -94,7 +103,7 @@ function createAudioContext() {
   }
 }
 
-function playNotificationSound(audioContext) {
+function playNotificationSound() {
   // Play notification sound using noti.mp3
   const audio = new Audio('/noti.mp3')
   audio.volume = 1
@@ -103,9 +112,20 @@ function playNotificationSound(audioContext) {
 
 function App() {
   const [timerState, setTimerState] = useState(createInitialState)
-  const { phase, secondsLeft, isRunning, completedFocusSessions } = timerState
+  const { phase, startTime, pausedTime, totalDuration, isRunning, completedFocusSessions } = timerState
+  const [tick, setTick] = useState(0)
   const isInitialPhase = useRef(true)
   const audioContextRef = useRef(null)
+
+  const secondsLeft = useMemo(() => {
+    if (phase === 'complete') return 0
+    if (isRunning) {
+      const elapsed = (tick - startTime) / 1000
+      return Math.max(0, Math.ceil(totalDuration - elapsed))
+    } else {
+      return Math.max(0, Math.ceil(totalDuration - (pausedTime || 0)))
+    }
+  }, [phase, startTime, pausedTime, totalDuration, isRunning, tick])
 
   useEffect(() => {
     if (isInitialPhase.current) {
@@ -113,38 +133,31 @@ function App() {
       return
     }
 
-    playNotificationSound(audioContextRef.current)
+    playNotificationSound()
   }, [phase])
 
   useEffect(() => {
-    if (!isRunning || phase === 'complete') {
-      return undefined
+    if (!isRunning || phase === 'complete') return
+
+    const update = () => {
+      setTick(Date.now())
+      const elapsed = (Date.now() - startTime) / 1000
+      if (elapsed >= totalDuration) {
+        setTimerState(currentState => getNextState(currentState))
+      } else {
+        requestAnimationFrame(update)
+      }
     }
-
-    const intervalId = window.setInterval(() => {
-      setTimerState((currentState) => {
-        if (currentState.secondsLeft > 1) {
-          return {
-            ...currentState,
-            secondsLeft: currentState.secondsLeft - 1,
-          }
-        }
-
-        return getNextState(currentState)
-      })
-    }, 1000)
-
-    return () => window.clearInterval(intervalId)
-  }, [isRunning, phase])
+    requestAnimationFrame(update)
+  }, [isRunning, phase, startTime, totalDuration])
 
   const progressPercent = useMemo(() => {
     if (phase === 'complete') {
       return 100
     }
 
-    const totalSeconds = getPhaseDuration(phase)
-    return ((totalSeconds - secondsLeft) / totalSeconds) * 100
-  }, [phase, secondsLeft])
+    return ((totalDuration - secondsLeft) / totalDuration) * 100
+  }, [phase, secondsLeft, totalDuration])
 
   const nextStageLabel = useMemo(() => {
     if (phase === 'focus') {
@@ -160,21 +173,39 @@ function App() {
   const toggleTimer = () => {
     if (!audioContextRef.current) {
       audioContextRef.current = createAudioContext()
-      playNotificationSound(audioContextRef.current)
+      playNotificationSound()
     }
 
     if (phase === 'complete') {
       setTimerState({
         ...createInitialState(),
         isRunning: true,
+        startTime: Date.now(),
       })
       return
     }
 
-    setTimerState((currentState) => ({
-      ...currentState,
-      isRunning: !currentState.isRunning,
-    }))
+    setTimerState((currentState) => {
+      if (currentState.isRunning) {
+        // Pausing
+        const elapsed = Date.now() - currentState.startTime
+        return {
+          ...currentState,
+          isRunning: false,
+          pausedTime: elapsed / 1000,
+          startTime: null,
+        }
+      } else {
+        // Starting/Resuming
+        const newStartTime = Date.now() - (currentState.pausedTime * 1000 || 0)
+        return {
+          ...currentState,
+          isRunning: true,
+          startTime: newStartTime,
+          pausedTime: null,
+        }
+      }
+    })
   }
 
   const resetTimer = () => {
@@ -182,7 +213,7 @@ function App() {
   }
 
   const skipPhase = () => {
-    setTimerState((currentState) => getNextState({ ...currentState, isRunning: false }))
+    setTimerState((currentState) => getNextState({ ...currentState, isRunning: false, startTime: null, pausedTime: null }))
   }
 
   return (
